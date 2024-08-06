@@ -14,12 +14,12 @@ Created on Tue Jul 23 13:04:57 2024
 
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error
-from daily_data import * 
+# from daily_data import * 
 
-original_data = pd.read_csv('owyhee_aws.csv')
-agg_average_data = pd.read_csv('daily_owy_agg_average.csv')
-agg_median_data = pd.read_csv('daily_owy_agg_median.csv')
-daily_pulled = pd.read_csv('daily_owy.csv')
+# original_data = pd.read_csv('owyhee_aws.csv')
+# agg_average_data = pd.read_csv('daily_owy_agg_average.csv')
+# agg_median_data = pd.read_csv('daily_owy_agg_median.csv')
+# daily_pulled = pd.read_csv('daily_owy.csv')
 
 
 # Convert 'date' column to datetime and extract month and day for indexing
@@ -30,8 +30,8 @@ def preprocess_agg_data(df):
     df['year'] = df['date'].dt.year
     return df
 
-agg_avg_df = preprocess_agg_data(agg_average_data).drop(columns=['date'])
-agg_med_df = preprocess_agg_data(agg_median_data).drop(columns=['date'])
+# agg_avg_df = preprocess_agg_data(agg_average_data).drop(columns=['date'])
+# agg_med_df = preprocess_agg_data(agg_median_data).drop(columns=['date'])
 
 # Pivot the data to have 'month_day' as index and years as columns
 def pivot_data(df, value_column):
@@ -40,8 +40,8 @@ def pivot_data(df, value_column):
 
     return pivot_df
 
-pivoted_values_avg = pivot_data(agg_avg_df, 'value')
-pivoted_values_med = pivot_data(agg_med_df, 'value')
+# pivoted_values_avg = pivot_data(agg_avg_df, 'value')
+# pivoted_values_med = pivot_data(agg_med_df, 'value')
 
 
 
@@ -94,15 +94,15 @@ def sort_water_year(df):
     
 #     return df
  
-df_avg = sort_water_year(pivoted_values_avg)
-df_med = sort_water_year(pivoted_values_med)
+# df_avg = sort_water_year(pivoted_values_avg)
+# df_med = sort_water_year(pivoted_values_med)
 
-df_med.to_csv("def_med_for_sim.csv")
-df_avg.to_csv("def_avg_for_sim.csv")
+# df_med.to_csv("def_med_for_sim.csv")
+# df_avg.to_csv("def_avg_for_sim.csv")
 
 
-original_data = original_data.iloc[: , :-9]
-# compare  original_data, df_avg, and df_med
-original_data.head()
+# original_data = original_data.iloc[: , :-9]
+# # compare  original_data, df_avg, and df_med
+# original_data.head()
 
-original_data.head()
+# original_data.head()

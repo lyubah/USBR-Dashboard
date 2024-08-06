@@ -1,11 +1,11 @@
 import pandas as pd
 
 # Load the pivoted data
-df= pd.read_csv('def_med_for_sim.csv', index_col='month_day')
+# df= pd.read_csv('def_med_for_sim.csv', index_col='month_day')
 
-df_avg = pd.read_csv('def_avg_for_sim.csv', index_col='month_day')
+# df_avg = pd.read_csv('def_avg_for_sim.csv', index_col='month_day')
 
-# Function to sort data by water year
+# # Function to sort data by water year
 def sort_water_year(df):
     # Ensure 'month_day' is the index
     if 'month_day' not in df.columns:
@@ -46,11 +46,17 @@ def sort_water_year(df):
 
     return reordered_df
 
-# Apply the function to sort data by water year
+# # Apply the function to sort data by water year
+df= pd.read_csv('def_med.csv', index_col='month_day')
+df_avg = pd.read_csv('def_avg_for_sim.csv', index_col='month_day')
+
+
+
+
 sorted_df = sort_water_year(df)
 sorted_df_avg = sort_water_year(df_avg)
 
 # Save the sorted DataFrame to a new CSV file
-sorted_df.to_csv('sorted_water_year_med.csv')
+# sorted_df.to_csv('sorted_water_year_med.csv')
 sorted_df_avg.to_csv('sorted_water_year_avg.csv')
 

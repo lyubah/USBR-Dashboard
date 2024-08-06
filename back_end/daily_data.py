@@ -1,39 +1,99 @@
-import pandas as pd
-import numpy as np
-from scipy.spatial.distance import euclidean, cdist
-from scipy.stats import pearsonr, entropy
 import requests
+import pandas as pd
 from datetime import datetime
+# from data_comparison import sort_water_year
+import pandas as pd
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-def get_parameters(station_triplets):
+
+# def sort_water_year(df):
+#     # Convert 'month_day' to datetime format
+#     df['month_day'] = pd.to_datetime(df['month_day'], format='%m-%d', errors='coerce')
+#     # df = df.dropna(subset=['month_day'])  # Drop rows where date conversion failed
+    
+#     # Adjust the dates to align with the water year
+#     df['adjusted_date'] = df['month_day'].apply(lambda x: x.replace(year=2000) if x.month >= 10 else x.replace(year=2001))
+    
+#     # Sort by the adjusted date
+#     df = df.sort_values('adjusted_date')
+    
+#     # Convert 'month_day' back to string format and set it as index
+#     df['month_day'] = df['month_day'].dt.strftime('%m-%d')
+#     df.set_index('month_day', inplace=True)
+#     df.drop(columns=['adjusted_date'], inplace=True)
+    
+#     # # Drop the 'adjusted_date' column
+#     # df.drop(columns=[1980, 'adjusted_date'], inplace=True)
+#     df = df.iloc[:-1]
+    
+#     return df
+
+def sort_water_year(df):
+    # Ensure 'month_day' is the index
+    if 'month_day' not in df.columns:
+        df.reset_index(inplace=True)
+        df.rename(columns={'index': 'month_day'}, inplace=True)
+        
+    # Convert 'month_day' to datetime format
+    df['month_day'] = pd.to_datetime(df['month_day'], format='%m-%d', errors='coerce')
+
+    # Create a new DataFrame to store reordered data
+    reordered_df = pd.DataFrame()
+
+    # Process each year's data
+    for year in range(1981, 2025):
+        # Create the column names as strings
+        current_year = str(year)
+        previous_year = str(year - 1)
+
+        # If previous year column does not exist, create an empty column
+        if previous_year not in df.columns:
+            df[previous_year] = None
+
+        # Select data from October to December of the previous year
+        oct_to_dec = df.loc[df['month_day'].dt.month >= 10, previous_year].reset_index(drop=True)
+
+        # Select data from January to September of the current year
+        jan_to_sep = df.loc[df['month_day'].dt.month < 10, current_year].reset_index(drop=True)
+
+        # Combine the data to form the water year
+        water_year_data = pd.concat([oct_to_dec, jan_to_sep], ignore_index=True)
+
+        # Add the water year data to the new DataFrame
+        reordered_df[current_year] = water_year_data
+
+    # Reset the index of the new DataFrame to 'month_day'
+    reordered_df.index = pd.date_range(start='10/1/2000', periods=len(reordered_df), freq='D')
+    reordered_df.index = reordered_df.index.strftime('%m-%d')
+
+    return reordered_df
+
+
+def get_parameters(station_triplets, end_date, elements):
     """
     Collects common parameters for both stations and data endpoints.
     """
-    elements = "WTEQ"
     duration = "DAILY"
     begin_date = '1980-10-01'
-    end_date = datetime.now().strftime("%Y-%m-%d")
-    central_tendency_type = "ALL"
-    return_flags = False
     params = {
         "stationTriplets": station_triplets,
         "elements": elements,
         "duration": duration,
         "beginDate": begin_date,
         "endDate": end_date,
-        "centralTendencyType": central_tendency_type,
+        "centralTendencyType": "ALL",
         "returnFlags": False
     }
     return params
 
-def get_station_data(params, BASE_URL):
+def get_station_data(BASE_URL, params):
     """
     Retrieves observational data from the stations using the data endpoint.
     """
     endpoint = "data"
     url = f"{BASE_URL}/{endpoint}"
     
-    query_string = "&".join([f"{key}={value}" for key, value in params.items()])
+    query_string = "&".join([f"{key}={','.join(value) if isinstance(value, list) else value}" for key, value in params.items()])
     full_url = f"{url}?{query_string}"
     
     response = requests.get(full_url)
@@ -61,23 +121,24 @@ def relevant_data(data):
                     'date': date,
                     'year': date.year,
                     'month': date.month,
+                    'month_day': date.strftime('%m-%d'),
                     'value': value['value'],
                     'average': average,
                     'median': median
                 })
     return relevant_data
 
-def process_SNTL(sntl_lst, BASE_URL):
+def process_SNTL(BASE_URL, sntl_lst, elements, end_date):
     """
     Processes the SNOTEL data for the list of stations.
     """
     failed_sntl = []
-    headers = ['stationTriplet', 'date', 'year', 'month', 'value', 'average', 'median']
+    headers = ['stationTriplet', 'date', 'year', 'month', 'month_day', 'value', 'average', 'median']
     df = pd.DataFrame(columns=headers)
 
     for station in sntl_lst:
-        params = get_parameters(station)
-        data = get_station_data(params, BASE_URL)
+        params = get_parameters(station, end_date, elements)
+        data = get_station_data(BASE_URL, params)
         if not data:
             failed_sntl.append(station)
         else:
@@ -86,18 +147,6 @@ def process_SNTL(sntl_lst, BASE_URL):
             df = pd.concat([df, temp_df], ignore_index=True)
             
     return df, failed_sntl
-
-def save_to_csv(sntl_lst, filename, BASE_URL):
-    """
-    Saves the SNOTEL data to a CSV file.
-    """
-    df, failed_sntl = process_SNTL(sntl_lst, BASE_URL)
-    df.to_csv(filename, index=False)
-    
-    if failed_sntl:
-        print(f"Failed stations: {failed_sntl}. Data saved to {filename}.")
-    else:
-        print(f"All stations' data retrieved. Data saved to {filename}.")
 
 def aggregate_by_average(df):
     """
@@ -129,41 +178,92 @@ def aggregate_by_median(df):
 
     return median_aggregation
 
-def process_and_save_aggregated_data(file_path):
+def preprocess_agg_data(df):
     """
-    Opens a CSV file, aggregates the data using average and median, and saves the results.
+    Preprocesses the aggregated data by converting 'date' to datetime, extracting 'month_day' and 'year'.
     """
-    # Load the dataset
-    data = pd.read_csv(file_path)
-    
-    
+    df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d', errors='coerce')
+    df = df.dropna(subset=['date'])  # Drop rows where date conversion failed
+    df['month_day'] = df['date'].dt.strftime('%m-%d')
+    df['year'] = df['date'].dt.year
+    return df.drop(columns=['date'])
+
+def pivot_data(df, value_column):
+    """
+    Pivots the data to have 'month_day' as index and years as columns.
+    """
+    pivot_df = df.pivot(index='month_day', columns='year', values=value_column)
+    pivot_df.reset_index(inplace=True)
+    return pivot_df
+
+def process_and_save_aggregated_data(df, elements):
+    """
+    Aggregates the data using average and median, preprocesses, pivots, and sorts by water year.
+    """
     # Aggregate data by average and median
-    average_aggregated = aggregate_by_average(data)
-    median_aggregated = aggregate_by_median(data)
+    agg_avg_df = aggregate_by_average(df)
+    agg_med_df = aggregate_by_median(df)
     
-    # Construct new filenames
-    base_filename = file_path.rsplit('.', 1)[0]  # Remove file extension
-    average_filename = f"{base_filename}_agg_average.csv"
-    median_filename = f"{base_filename}_agg_median.csv"
+    # Preprocess aggregated data
+    agg_avg_df = preprocess_agg_data(agg_avg_df)
+    agg_med_df = preprocess_agg_data(agg_med_df)
     
-    # Save the aggregated DataFrames to new CSV files
-    average_aggregated.to_csv(average_filename, index=False)
-    median_aggregated.to_csv(median_filename, index=False)
+    # Pivot the data
+    pivoted_values_avg = pivot_data(agg_avg_df, 'value')
+    pivoted_values_med = pivot_data(agg_med_df, 'value')
     
-    print(f"Aggregated data saved to {average_filename} and {median_filename}")
+    # Fill NA values with 0
+    pivoted_values_avg = pivoted_values_avg.fillna(0)
+    pivoted_values_med = pivoted_values_med.fillna(0)
+  
+  # Convert columns to strings
+    pivoted_values_avg.columns = pivoted_values_avg.columns.astype(str)
+    pivoted_values_med.columns = pivoted_values_med.columns.astype(str)
+     
+    
+    # Sort data by water year
+    sorted_avg = sort_water_year(pivoted_values_avg)
+    sorted_median = sort_water_year(pivoted_values_med)
+    
+    return sorted_avg, sorted_median
+
+def get_daily_water_year(BASE_URL, sntl_lst, elements, end_date):
+    """
+    Runs the entire data processing pipeline for the specified stations and elements.
+    """
+    # Retrieve and process data
+    df, failed_sntl = process_SNTL(BASE_URL, sntl_lst, elements, end_date)
+    
+    if not df.empty:
+        # Aggregate, preprocess, pivot, and sort data by water year
+        sorted_avg, sorted_median = process_and_save_aggregated_data(df, elements)
+        
+        # Save the sorted DataFrames to CSV files if needed
+        sorted_avg.to_csv(f'sorted_water_year_avg_{elements}.csv')
+        sorted_median.to_csv(f'sorted_water_year_med_{elements}.csv')
+        
+        print(f"Data processed successfully for elements: {elements}")
+    else:
+        print("No data available to process.")
+    
+    if failed_sntl:
+        return (f"{elements} was not found in the following: {failed_sntl}")
+    return sorted_avg, sorted_median 
+
 
 def main():
     BASE_URL = "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1"
     sntl_owy = ['336:NV:SNTL', '1262:NV:SNTL', '548:NV:SNTL', '573:NV:SNTL', '654:ID:SNTL', '774:ID:SNTL', '811:NV:SNTL', '1136:NV:SNTL']
     filename = 'daily_owy.csv'
+    end_date = datetime.now().strftime("%Y-%m-%d")
+
     
     
     # Save raw data to CSV
-    save_to_csv(sntl_owy, filename, BASE_URL)
+    # save_to_csv(sntl_owy, filename, BASE_URL)
     
     # Process and save aggregated data
-    process_and_save_aggregated_data(filename)
+    get_daily_water_year(BASE_URL, sntl_owy, 'WTEQ', end_date)
 
 if __name__ == "__main__":
     main()
-

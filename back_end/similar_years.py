@@ -13,12 +13,6 @@ from scipy.integrate import simps
 
 
 
-# sorted_avg_data.reset_index(inplace=True)
-# sorted_med_data.reset_index(inplace=True)
-
-# sorted_avg_data.rename(columns={'index': 'month_day'}, inplace=True)
-# sorted_med_data.rename(columns={'index': 'month_day'}, inplace=True)
-
 
 
 def select_data_up_to_date(data, month, day):
@@ -73,13 +67,13 @@ def find_similar_years_across_datasets(current_year, datasets, month, day, thres
 # Example usage
 
 
-# Load the sorted data and set the correct index
-sorted_avg_data = pd.read_csv('sorted_water_year_avg.csv', index_col=0)
-sorted_med_data = pd.read_csv('sorted_water_year_med.csv', index_col=0)
+# # Load the sorted data and set the correct index
+# sorted_avg_data = pd.read_csv('sorted_water_year_avg.csv', index_col=0)
+# sorted_med_data = pd.read_csv('sorted_water_year_med.csv', index_col=0)
 
-datasets = [sorted_avg_data, sorted_med_data]
+# datasets = [sorted_avg_data, sorted_med_data]
 
-similar_years_across = find_similar_years_across_datasets('2024', datasets, 3, 1, threshold=0.85, n=7)
+# similar_years_across = find_similar_years_across_datasets('2024', datasets, 3, 1, threshold=0.85, n=7)
 # print("Similar Years Across Datasets:", similar_years_across)
 
 
