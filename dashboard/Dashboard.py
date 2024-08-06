@@ -17,6 +17,8 @@ import plotly.express as px
 from dash.dependencies import Input, Output, State, ALL
 from dash.exceptions import PreventUpdate
 import dash
+from station_meta_data import get_stations_metadata
+# from report_dataset_generator import generate_report_data
 
 # Define the Flask server
 server = Flask(__name__)
@@ -46,6 +48,12 @@ basins = [
     "Umatilla River Basin, OR"
 ]
 
+basin_stations = {
+    "Owyhee River Basin, OR-NV": ['336:NV:SNTL', '1262:NV:SNTL', '548:NV:SNTL', '573:NV:SNTL', '654:ID:SNTL', '774:ID:SNTL', '811:NV:SNTL', '1136:NV:SNTL'],
+    # Add other basins and their stations here later
+}
+
+stations_triplets = get_stations_metadata()
 
 # Define the map bounds based on the provided coordinates
 map_bounds = {
@@ -108,6 +116,18 @@ app.layout = html.Div([  # Main container
                         id='basin-dropdown',
                         options=[{'label': basin, 'value': basin} for basin in basins],
                         value=basins[0],  # Default value
+                        style={
+                            'width': '80%',  # Width of the dropdown
+                            'margin': '0 auto',  # Center the dropdown
+                            'marginBottom': '10px'  # Space below the dropdown
+                        }
+                    ),
+                    html.Label("Select Stations:", style={'marginTop': '20px'}),
+                    dcc.Dropdown(
+                        id='stations-dropdown',
+                        options=[{'label': triplet, 'value': triplet} for triplet in stations_triplets],
+                        value=[stations_triplets[0]],  # Default value
+                        multi=True,
                         style={
                             'width': '80%',  # Width of the dropdown
                             'margin': '0 auto',  # Center the dropdown
@@ -194,6 +214,16 @@ app.layout = html.Div([  # Main container
     'minHeight': '100vh'  # Minimum height for the container
 })
 
+@app.callback(
+    Output('stations-dropdown', 'options'),
+    Input('basin-dropdown', 'value')
+)
+def update_stations_dropdown(selected_basin):
+    if selected_basin in basin_stations:
+        stations = basin_stations[selected_basin]
+        return [{'label': station, 'value': station} for station in stations]
+    return []    
+
 # Callback to toggle graph visibility
 @app.callback(
     Output('graph-container', 'children'),
@@ -217,17 +247,20 @@ def close_graph(n_clicks):
 def update_table(n_clicks, selected_basin, selected_date):
     if n_clicks > 0:
         # Mock data for demonstration purposes
-        data = {
-            'Year': ['2020', '2019', '2018'],
-            'Data Point 1': [100, 200, 300],
-            'Data Point 2': [400, 500, 600],
-            'Data Point 3': [700, 800, 900]  # Add more columns as needed
-        }
-        df = pd.DataFrame(data)
+        # data = {
+        #     'Year': ['2020', '2019', '2018'],
+        #     'Data Point 1': [100, 200, 300],
+        #     'Data Point 2': [400, 500, 600],
+        #     'Data Point 3': [700, 800, 900]  # Add more columns as needed
+        # }
+        # df = pd.DataFrame(data)
+        
+        report_data = generate_report_data(selected_basin, selected_date)
+
 
         return dash_table.DataTable(
             id='data-table',
-            data=df.to_dict('records'),
+            data= report_data.to_dict('records'),
             columns=[{'name': i, 'id': i} for i in df.columns],
             style_table={
                 'margin': 'auto',
@@ -319,6 +352,15 @@ def update_visualization_widget(active_cell, table_data, close_clicks, visible_g
         return html.Div(figs), visible_graphs
 
     return dash.no_update
+
+@app.callback(
+    Output('stations-dropdown', 'options'),
+    Input('basin-dropdown', 'value')
+)
+def update_stations_dropdown(selected_basin):
+    # For now, we only have stations for Owyhee River Basin
+    return [{'label': triplet, 'value': triplet} for triplet in stations_triplets]
+
 
 if __name__ == '__main__':
     server.run(debug=True, port=5000)
