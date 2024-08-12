@@ -32,6 +32,7 @@ def calculate_wasserstein_distance(current_year_data, historical_year_data):
     return wasserstein_distance(current_year_data, historical_year_data)
 
 def find_similar_years(current_year, data, month, day, n=5):
+    current_year =  str(current_year)
     period_data = select_data_up_to_date(data, month, day)
     current_year_data = period_data[current_year].dropna().values
     distances = []
@@ -67,7 +68,7 @@ def find_similar_years_across_datasets(current_year, datasets, month, day, thres
 # Example usage
 
 
-# # Load the sorted data and set the correct index
+# # # # Load the sorted data and set the correct index
 # sorted_avg_data = pd.read_csv('sorted_water_year_avg.csv', index_col=0)
 # sorted_med_data = pd.read_csv('sorted_water_year_med.csv', index_col=0)
 

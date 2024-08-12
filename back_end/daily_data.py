@@ -247,23 +247,23 @@ def get_daily_water_year(BASE_URL, sntl_lst, elements, end_date):
         print("No data available to process.")
     
     if failed_sntl:
-        return (f"{elements} was not found in the following: {failed_sntl}")
+        print(f"{elements} was not found in the following: {failed_sntl}")
     return sorted_avg, sorted_median 
 
 
-def main():
-    BASE_URL = "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1"
-    sntl_owy = ['336:NV:SNTL', '1262:NV:SNTL', '548:NV:SNTL', '573:NV:SNTL', '654:ID:SNTL', '774:ID:SNTL', '811:NV:SNTL', '1136:NV:SNTL']
-    filename = 'daily_owy.csv'
-    end_date = datetime.now().strftime("%Y-%m-%d")
+# def main():
+#     BASE_URL = "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1"
+#     sntl_owy = ['336:NV:SNTL', '1262:NV:SNTL', '548:NV:SNTL', '573:NV:SNTL', '654:ID:SNTL', '774:ID:SNTL', '811:NV:SNTL', '1136:NV:SNTL']
+#     filename = 'daily_owy.csv'
+#     end_date = datetime.now().strftime("%Y-%m-%d")
 
     
     
-    # Save raw data to CSV
-    # save_to_csv(sntl_owy, filename, BASE_URL)
+#     # Save raw data to CSV
+#     # save_to_csv(sntl_owy, filename, BASE_URL)
     
-    # Process and save aggregated data
-    get_daily_water_year(BASE_URL, sntl_owy, 'WTEQ', end_date)
+#     # Process and save aggregated data
+#     get_daily_water_year(BASE_URL, sntl_owy, 'WTEQ', end_date)
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
