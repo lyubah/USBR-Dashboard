@@ -31,7 +31,7 @@ def select_data_up_to_date(data, month, day):
 def calculate_wasserstein_distance(current_year_data, historical_year_data):
     return wasserstein_distance(current_year_data, historical_year_data)
 
-def find_similar_years(current_year, data, month, day, n=5):
+def find_similar_years(current_year, data, month, day, n):
     current_year =  str(current_year)
     period_data = select_data_up_to_date(data, month, day)
     current_year_data = period_data[current_year].dropna().values
@@ -47,7 +47,7 @@ def find_similar_years(current_year, data, month, day, n=5):
     
     return distances[:n]
 
-def find_similar_years_across_datasets(current_year, datasets, month, day, threshold=None, n=5):
+def find_similar_years_across_datasets(current_year, datasets, month, day, threshold, n):
     similar_years_all = []
 
       

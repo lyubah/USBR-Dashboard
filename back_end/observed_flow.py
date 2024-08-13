@@ -19,6 +19,14 @@ import pandas as pd
 
 
 
+def get_average(df):
+   return df.groupby('year')['value'].mean()
+
+    
+
+
+
+
 def calculate_122_day_period(year, month, day):
     year = int(year)
     month = int(month)
@@ -32,7 +40,7 @@ def get_parameters(station_triplets, start_date, end_date):
     Collects common parameters for both stations and data endpoints.
     """
     elements = '*'
-    duration = "MONTHLY"
+    duration = "DAILY"
     central_tendency_type = "ALL"
     return_flags = False
     params = {
@@ -63,61 +71,41 @@ def get_station_data(params, BASE_URL):
         print(f"Error: {response.status_code} - {response.text}")
         return False
 
-# def relevant_data(data):
-#     """
-#     Extracts relevant data from the JSON response.
-#     """
-#     relevant_data = []
-#     for station in data:
-#         station_triplet = station['stationTriplet']
-#         for record in station['data']:
-#             element_code = record['stationElement']['elementCode'] 
-#             for value in record['values']:
-#                 date = datetime.strptime(value['date'], '%Y-%m-%d').date()
-#                 average = -1 if value.get('average') is None else value['average']
-#                 median = -1 if value.get('median') is None else value['median']
-#                 relevant_data.append({
-#                     'stationTriplet': station_triplet,
-#                     'element': element_code,
-#                     'date': date,
-#                     'year': date.year,
-#                     'month': date.month,  
-#                     'value': value['value'],
-#                     'average': average,
-#                     'median': median
-#                 })
-#     return pd.DataFrame(relevant_data)
 
 def relevant_data(data):
     """
-    Extracts relevant data from the JSON response.
+    Extracts relevant data from the JSON response and returns a DataFrame.
+    Note: may not want average and median values.
     """
     relevant_data = []
     for station in data:
         station_triplet = station['stationTriplet']
         for record in station['data']:
-            element_code = record['stationElement']['elementCode']  # Extract the element code
+            element_code = record['stationElement']['elementCode']
             for value in record['values']:
-                year = value['year']
-                month = value['month']
-                date = datetime(year, month, 1)  # Create date from year and month
+                date = datetime.strptime(value['date'], '%Y-%m-%d').date()
                 average = -1 if value.get('average') is None else value['average']
                 median = -1 if value.get('median') is None else value['median']
                 relevant_data.append({
                     'stationTriplet': station_triplet,
-                    'element': element_code,  # Add the element code to the record
+                    'elementCode': element_code,
                     'date': date,
-                    'year': year,
-                    'month': month,
+                    'year': date.year,
+                    'month': date.month,
+                    'month_day': date.strftime('%m-%d'),
                     'value': value['value'],
                     'average': average,
                     'median': median
                 })
-    return pd.DataFrame(relevant_data)
+    
+    # Convert the list of dictionaries to a DataFrame
+    df = pd.DataFrame(relevant_data)
+    
+    return df
 
 def get_observed_flow(station_lists, BASE_URL, month, day, years):
     
-    all_observed_flow = pd.DataFrame()    
+    all_observed_flow = pd.DataFrame()
 
     stations = [station for station in station_lists if "USGS" in station]
     
@@ -135,7 +123,6 @@ def get_observed_flow(station_lists, BASE_URL, month, day, years):
             if data:
                 df = relevant_data(data)
                 print(f"Processed data for station: {station}")
-                print(df.head())
                 if not df.empty:
                     data_frames.append(df)
             else:
@@ -147,21 +134,25 @@ def get_observed_flow(station_lists, BASE_URL, month, day, years):
             all_observed_flow = pd.concat([all_observed_flow, combined_df], ignore_index=True)
     
     # START HERE
-    # all_observed_flow
-        
-    return all_observed_flow
-
-
-
-
-# Example usage
-if __name__ == "__main__":
-    BASE_URL = "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1"
-    station_lists = ['336:NV:SNTL', '13183000:OR:USGS', '13174500:NV:USGS', '13181000:OR:USGS']
-    month = 3
-    day = 1
-    years = ['1999', '2023', '2017', '1997', '2006', '2004', '2002']
+    # get an average for each year 
+    df = get_average(all_observed_flow)
+    df.rename('122-Day Mean Stream Volume (SRVOO)', inplace=True)
+ 
     
-    observed_flow_data = get_observed_flow(station_lists, BASE_URL, month, day, years)
-    print(observed_flow_data.head())
+    
+        
+    return df
 
+
+
+
+# # Example usage
+# if __name__ == "__main__":
+#     BASE_URL = "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1"
+#     station_lists = ['336:NV:SNTL', '13183000:OR:USGS', '13174500:NV:USGS', '13181000:OR:USGS']
+#     month = 3
+#     day = 1
+#     years = ['1999', '2023', '2017', '1997', '2006', '2004', '2002']
+    
+#     observed_flow_data = get_observed_flow(station_lists, BASE_URL, month, day, years)
+#     print(observed_flow_data.head())

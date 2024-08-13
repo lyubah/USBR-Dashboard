@@ -19,6 +19,7 @@ from dash.exceptions import PreventUpdate
 import dash
 from station_meta_data import get_stations_metadata
 from report_dataset_gen import *
+from observed_flow import *
 
 # Define the Flask server
 server = Flask(__name__)
@@ -189,6 +190,9 @@ app.layout = html.Div([  # Main container
                 'margin': 'auto'  # Center align the container
             })
         ]),
+        dcc.Tab(label='Data Summary', id='data-summary-tab', children=[
+        html.Div(id='data-summary-content')
+    ]),        
         dcc.Tab(label='SNOTEL and USGS Data', children=[
             html.Div([
                 html.H2(
@@ -423,11 +427,12 @@ def update_stations_dropdown(selected_basin):
     print(f"Options: {options}")  # Debugging statement
     
     if selected_basin == "Owyhee River Basin, OR-NV":
-        sntl_owy = [
-            '336:NV:SNTL', '1262:NV:SNTL', '548:NV:SNTL', '549:NV:SNTL',
-            '573:NV:SNTL', '654:ID:SNTL', '774:ID:SNTL', '811:NV:SNTL',
-            '1136:NV:SNTL', '476:NV:SNTL', '1201:NV:SNTL'
-        ]
+        sntl_owy = basin_stations.get('Owyhee River Basin, OR-NV')
+        # sntl_owy = [
+        #     '336:NV:SNTL', '1262:NV:SNTL', '548:NV:SNTL', '549:NV:SNTL',
+        #     '573:NV:SNTL', '654:ID:SNTL', '774:ID:SNTL', '811:NV:SNTL',
+        #     '1136:NV:SNTL', '476:NV:SNTL', '1201:NV:SNTL'
+        # ]
         value = sntl_owy
         print(f"Value (Owyhee): {value}")  # Debugging statement
     else:

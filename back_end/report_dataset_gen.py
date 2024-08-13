@@ -31,6 +31,8 @@ from daily_data import *
 # from get_precipitation import get_precipitation_data
 # from get_soil_moisture import *
 from get_precipitation import * 
+from observed_flow import *
+
 
 
 
@@ -80,6 +82,7 @@ def generate_report_data(basin, station_list, date):
     df = pd.DataFrame(similar_years_scores, columns=['year', 'month', 'day', score_column_name])
     
     years = df['year'].to_list()
+    years.append(str(year))
     
     # Set the 'year' column as the index
     df.set_index('year', inplace=True)
@@ -96,16 +99,17 @@ def generate_report_data(basin, station_list, date):
     
     # Set 'year' as index for both DataFrames and convert to integer
     merged_df = df.merge(prec, left_index=True, right_index=True, how='left')
+    merged_df.rename(columns={'percent_normal': '122 day Precipitation(%)'}, inplace=True)
+    
+    obsv_flow = get_observed_flow(station_list, BASE_URL, month, day, years)
+    # Set 'year' as index for both DataFrames and convert to integer
+    merged_df = merged_df.merge(obsv_flow, left_index=True, right_index=True, how='left')
+    # obsv_flow.rename(columns={'value': '122-Day Mean Stream Volume (SRVOO)'}, inplace=True)
+
     # Rename the column if needed
-    merged_df.rename(columns={'percent_normal': '122 day Precipitation'}, inplace=True)
-    
-    # Get soil 
-    # soil_moisture_data = get_soil_moisture_data(basin, year, month, day)
-    
-    
-    
-    
-    
+   
+    merged_df.reset_index(inplace=True)
+
     
     return merged_df
     
@@ -117,12 +121,14 @@ def generate_report_data(basin, station_list, date):
     
     
         
-# Perocesses it 
+# # Perocesses it 
 
 # if __name__ == "__main__":
 #     BASE_URL = "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1"
-#     sntl_owy = ['336:NV:SNTL', '1262:NV:SNTL', '548:NV:SNTL',  '549:NV:SNTL','573:NV:SNTL', '654:ID:SNTL', '774:ID:SNTL', '811:NV:SNTL', '1136:NV:SNTL', '476:NV:SNTL', '1201:NV:SNTL',  ]
+#     sntl_owy =  ['336:NV:SNTL','13183000:OR:USGS','13174500:NV:USGS','13181000:OR:USGS', '1262:NV:SNTL', '548:NV:SNTL', 
+#                                   '573:NV:SNTL', '654:ID:SNTL', '774:ID:SNTL', '811:NV:SNTL', '1136:NV:SNTL']
 #     end_date = datetime.now().strftime("%Y-%m-%d")
     
-#     generate_report_data('basin', sntl_owy, end_date)
+#     df = generate_report_data('basin', sntl_owy, end_date)
+#     df 
     

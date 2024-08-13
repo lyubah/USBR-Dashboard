@@ -1,180 +1,33 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Jul 29 16:16:01 2024
-
-@author: Lerberber
-"""
 import requests
 import pandas as pd
 from datetime import datetime
+# from data_comparison import sort_water_year
+import pandas as pd
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+from daily_data import * 
+from datetime import datetime, timedelta
+import requests
+import pandas as pd
 
-BASE_URL = "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1"
 
-
-
-
-def get_parameters(station_triplet, begin_date, end_date):
-    return {
-        "stationTriplets": station_triplet,
-        "elements": "PREC",
-        "duration": "DAILY",
-        "beginDate": begin_date,
-        "endDate": end_date,
-        "centralTendencyType": "ALL",
-        "returnFlags": False
-    }
-
-def get_station_data(params, BASE_URL):
-    url = f"{BASE_URL}/data"
-    response = requests.get(url, params=params)
-    if response.ok:
-        return response.json()
-    else:
-        print(f"Error: {response.status_code} - {response.text}")
-        return []
-
-def process_data(station_data):
+def pivot_data(df, value_column):
     """
-    Extracts relevant data from the JSON response.
+    Pivots the data to have 'month_day' as index and years as columns.
     """
-    records = []
-    for station in station_data:
-        station_triplet = station['stationTriplet']
-        for record in station['data'][0]['values']:
-            value = record.get('value')
-            average = record.get('average')
-            if value is not None and average is not None:  # Include only records with value and average
-                records.append({
-                    'stationTriplet': station_triplet,
-                    'date': record['date'],
-                    'value': value,
-                    'average': average
-                })
-    df = pd.DataFrame(records)
-    if not df.empty:
-        df['date'] = pd.to_datetime(df['date'])  # Ensure 'date' is in datetime format
-    return df
+    pivot_df = df.pivot(index='month_day', columns='year', values=value_column)
+    pivot_df.reset_index(inplace=True)
+    return pivot_df
 
-def sort_water_year(df):
-    # Ensure 'month_day' is the index
-    if 'month_day' not in df.columns:
-        df.reset_index(inplace=True)
-        df.rename(columns={'index': 'month_day'}, inplace=True)
-        
-    # Convert 'month_day' to datetime format
-    df['month_day'] = pd.to_datetime(df['month_day'], format='%m-%d', errors='coerce')
-
-    # Create a new DataFrame to store reordered data
-    reordered_df = pd.DataFrame()
-
-    # Process each year's data
-    for year in range(1981, 2025):
-        # Create the column names as strings
-        current_year = str(year)
-        previous_year = str(year - 1)
-
-        # If previous year column does not exist, create an empty column
-        if previous_year not in df.columns:
-            df[previous_year] = None
-
-        # Select data from October to December of the previous year
-        oct_to_dec = df.loc[df['month_day'].dt.month >= 10, previous_year].reset_index(drop=True)
-
-        # Select data from January to September of the current year
-        jan_to_sep = df.loc[df['month_day'].dt.month < 10, current_year].reset_index(drop=True)
-
-        # Combine the data to form the water year
-        water_year_data = pd.concat([oct_to_dec, jan_to_sep], ignore_index=True)
-
-        # Add the water year data to the new DataFrame
-        reordered_df[current_year] = water_year_data
-
-    # Reset the index of the new DataFrame to 'month_day'
-    reordered_df.index = pd.date_range(start='10/1/2000', periods=len(reordered_df), freq='D')
-    reordered_df.index = reordered_df.index.strftime('%m-%d')
-
-    return reordered_df
-
-
-def get_parameters(station_triplets, end_date, elements):
+def preprocess_agg_data(df):
     """
-    Collects common parameters for both stations and data endpoints.
+    Preprocesses the aggregated data by converting 'date' to datetime, extracting 'month_day' and 'year'.
     """
-    duration = "DAILY"
-    begin_date = '1980-10-01'
-    params = {
-        "stationTriplets": station_triplets,
-        "elements": elements,
-        "duration": duration,
-        "beginDate": begin_date,
-        "endDate": end_date,
-        "centralTendencyType": "ALL",
-        "returnFlags": False
-    }
-    return params
+    df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d', errors='coerce')
+    df = df.dropna(subset=['date'])  # Drop rows where date conversion failed
+    df['month_day'] = df['date'].dt.strftime('%m-%d')
+    df['year'] = df['date'].dt.year
+    return df.drop(columns=['date'])
 
-# def get_station_data(BASE_URL, params):
-#     """
-#     Retrieves observational data from the stations using the data endpoint.
-#     """
-#     endpoint = "data"
-#     url = f"{BASE_URL}/{endpoint}"
-    
-#     query_string = "&".join([f"{key}={','.join(value) if isinstance(value, list) else value}" for key, value in params.items()])
-#     full_url = f"{url}?{query_string}"
-    
-#     response = requests.get(full_url)
-#     if response.ok:
-#         return response.json()
-#     else:
-#         print(f"Error: {response.status_code} - {response.text}")
-#         return False
-
-# def relevant_data(data):
-#     """
-#     Extracts relevant data from the JSON response.
-#     Note: may not want average and median values. 
-#     """
-#     relevant_data = []
-#     for station in data:
-#         station_triplet = station['stationTriplet']
-#         for record in station['data']:
-#             for value in record['values']:
-#                 date = datetime.strptime(value['date'], '%Y-%m-%d').date()
-#                 average = -1 if value.get('average') is None else value['average']
-#                 median = -1 if value.get('median') is None else value['median']
-#                 relevant_data.append({
-#                     'stationTriplet': station_triplet,
-#                     'date': date,
-#                     'year': date.year,
-#                     'month': date.month,
-#                     'month_day': date.strftime('%m-%d'),
-#                     'value': value['value'],
-#                     'average': average,
-#                     'median': median
-#                 })
-#     return relevant_data
-
-def process_SNTL(BASE_URL, sntl_lst, elements, end_date):
-    """
-    Processes the SNOTEL data for the list of stations.
-    """
-    failed_sntl = []
-    headers = ['stationTriplet', 'date', 'year', 'month', 'month_day', 'value', 'average', 'median']
-    df = pd.DataFrame(columns=headers)
-
-    for station in sntl_lst:
-        params = get_parameters(station, end_date, elements)
-        data = get_station_data(BASE_URL, params)
-        if not data:
-            failed_sntl.append(station)
-        else:
-            data_relevant = relevant_data(data)
-            temp_df = pd.DataFrame(data_relevant)
-            df = pd.concat([df, temp_df], ignore_index=True)
-            
-    return df, failed_sntl
 
 def aggregate_by_average(df):
     """
@@ -184,9 +37,7 @@ def aggregate_by_average(df):
         df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
     
     average_aggregation = df.groupby('date').agg({
-        'value': 'mean',
-        'average': 'mean',
-        'median': 'mean'
+        'value': 'mean'
     }).reset_index()
 
     return average_aggregation
@@ -199,22 +50,10 @@ def aggregate_by_median(df):
         df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
     
     median_aggregation = df.groupby('date').agg({
-        'value': 'median',
-        'average': 'median',
-        'median': 'median'
+        'value': 'median'
     }).reset_index()
 
     return median_aggregation
-
-def preprocess_agg_data(df):
-    """
-    Preprocesses the aggregated data by converting 'date' to datetime, extracting 'month_day' and 'year'.
-    """
-    df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d', errors='coerce')
-    df = df.dropna(subset=['date'])  # Drop rows where date conversion failed
-    df['month_day'] = df['date'].dt.strftime('%m-%d')
-    df['year'] = df['date'].dt.year
-    return df.drop(columns=['date'])
 
 def pivot_data(df, value_column):
     """
@@ -224,7 +63,7 @@ def pivot_data(df, value_column):
     pivot_df.reset_index(inplace=True)
     return pivot_df
 
-def process_and_save_aggregated_data(df, elements):
+def process_and_save_aggregated_data(df):
     """
     Aggregates the data using average and median, preprocesses, pivots, and sorts by water year.
     """
@@ -255,29 +94,200 @@ def process_and_save_aggregated_data(df, elements):
     
     return sorted_avg, sorted_median
 
-def get_daily_water_year(BASE_URL, sntl_lst, elements, end_date):
-    """
-    Runs the entire data processing pipeline for the specified stations and elements.
-    
-    """
-    # Retrieve and process data
-    df, failed_sntl = process_SNTL(BASE_URL, sntl_lst, elements, end_date)
-    
-    if not df.empty:
-        # Aggregate, preprocess, pivot, and sort data by water year
-        sorted_avg, sorted_median = process_and_save_aggregated_data(df, elements)
+
+
+
+def sort_water_year(df):
+    # Ensure 'month_day' is the index
+    if 'month_day' not in df.columns:
+        df.reset_index(inplace=True)
+        df.rename(columns={'index': 'month_day'}, inplace=True)
         
-        # Save the sorted DataFrames to CSV files if needed
-        sorted_avg.to_csv(f'sorted_water_year_avg_{elements}.csv')
-        sorted_median.to_csv(f'sorted_water_year_med_{elements}.csv')
-        
-        print(f"Data processed successfully for elements: {elements}")
+    # Convert 'month_day' to datetime format
+    df['month_day'] = pd.to_datetime(df['month_day'], format='%m-%d', errors='coerce')
+
+    # Create a new DataFrame to store reordered data
+    reordered_df = pd.DataFrame()
+
+    # Process each year's data
+    for year in :
+        # Create the column names as strings
+        current_year = str(year)
+        previous_year = str(year - 1)
+
+        # If previous year column does not exist, create an empty column
+        if previous_year not in df.columns:
+            df[previous_year] = None
+
+        # Select data from October to December of the previous year
+        oct_to_dec = df.loc[df['month_day'].dt.month >= 10, previous_year].reset_index(drop=True)
+
+        # Select data from January to September of the current year
+        jan_to_sep = df.loc[df['month_day'].dt.month < 10, current_year].reset_index(drop=True)
+
+        # Combine the data to form the water year
+        water_year_data = pd.concat([oct_to_dec, jan_to_sep], ignore_index=True)
+
+        # Add the water year data to the new DataFrame
+        reordered_df[current_year] = water_year_data
+
+    # Reset the index of the new DataFrame to 'month_day'
+    reordered_df.index = pd.date_range(start='10/1/2000', periods=len(reordered_df), freq='D')
+    reordered_df.index = reordered_df.index.strftime('%m-%d')
+
+    return reordered_df
+
+def calculate_122_day_period(year, month, day):
+    year = int(year)
+    month = int(month)
+    day= int(day)
+    start_date = datetime(year, month, day)
+    end_date = start_date + timedelta(days=121)
+    return start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')
+
+def get_parameters(station_triplets, start_date, end_date):
+    """
+    Collects common parameters for both stations and data endpoints.
+    """
+    elements = 'SMS:*'
+    duration = "DAILY"
+    central_tendency_type = "ALL"
+    return_flags = False
+    begin_date = 
+    params = {
+        "stationTriplets": station_triplets,
+        "elements": elements,
+        "duration": duration,
+        "beginDate": start_date,
+        "endDate": end_date,
+        "centralTendencyType": central_tendency_type,
+        "returnFlags": False
+    }
+    return params
+
+def get_station_data(params, BASE_URL):
+    """
+    Retrieves observational data from the stations using the data endpoint.
+    """
+    endpoint = "data"
+    url = f"{BASE_URL}/{endpoint}"
+    
+    query_string = "&".join([f"{key}={value}" for key, value in params.items()])
+    full_url = f"{url}?{query_string}"
+    
+    response = requests.get(full_url)
+    if response.ok:
+        return response.json()
     else:
-        print("No data available to process.")
+        print(f"Error: {response.status_code} - {response.text}")
+        return False
+
+def relevant_data(data):
+    """
+    Extracts relevant data from the JSON response.
+    """
+    relevant_data = []
+    for station in data:
+        station_triplet = station['stationTriplet']
+        for record in station['data']:
+            element_code = record['stationElement']['elementCode'] 
+            for value in record['values']:
+                date = datetime.strptime(value['date'], '%Y-%m-%d').date()
+                average = -1 if value.get('average') is None else value['average']
+                median = -1 if value.get('median') is None else value['median']
+                relevant_data.append({
+                    'stationTriplet': station_triplet,
+                    'element': element_code,
+                    'date': date,
+                    'year': date.year,
+                    'month': date.month,  
+                    'value': value['value'],
+                    'average': average,
+                    'median': median
+                })
+    return pd.DataFrame(relevant_data)
+
+# def relevant_data(data):
+#     """
+#     Extracts relevant data from the JSON response.
+#     """
+#     relevant_data = []
+#     for station in data:
+#         station_triplet = station['stationTriplet']
+#         for record in station['data']:
+#             element_code = record['stationElement']['elementCode']  # Extract the element code
+#             for value in record['values']:
+#                 year = value['year']
+#                 month = value['month']
+#                 date = datetime(year, month, 1)  # Create date from year and month
+#                 average = -1 if value.get('average') is None else value['average']
+#                 median = -1 if value.get('median') is None else value['median']
+#                 relevant_data.append({
+#                     'stationTriplet': station_triplet,
+#                     'element': element_code,  # Add the element code to the record
+#                     'date': date,
+#                     'year': year,
+#                     'month': month,
+#                     'value': value['value'],
+#                     'average': average,
+#                     'median': median
+#                 })
+#     return pd.DataFrame(relevant_data)
+
+def get_soil(station_lists, BASE_URL, month, day, years):
     
-    if failed_sntl:
-        print(f"{elements} was not found in the following: {failed_sntl}")
-    return sorted_avg, sorted_median 
+    soil_moisture = pd.DataFrame()    
+
+    # stations = [station for station in station_lists if "SNTL" in station]
+    
+    for year in years:
+        start_date, end_date = calculate_122_day_period(year, month, day)
+        
+        print(f"Start Date: {start_date}, End Date: {end_date}")
+        
+        # Fetch data for each station
+        data_frames = []
+        for station in station_lists:
+            print(f"Fetching data for station: {station}")
+            params = get_parameters(station, start_date, end_date)
+            data = get_station_data(params, BASE_URL)
+            if data:
+                df = relevant_data(data)
+                print(f"Processed data for station: {station}")
+                print(df.head())
+                if not df.empty:
+                    data_frames.append(df)
+            else:
+                print(f"No data returned for station: {station}")
+        
+        if data_frames:
+            combined_df = pd.concat(data_frames, ignore_index=True)
+            soil_moisture = pd.concat([all_observed_flow, combined_df], ignore_index=True)
+    
+    # START HERE
+    # convert to water year:
+        soil_moisture
+    # sorted_avg, sorted_median = process_and_save_aggregated_data(all_observed_flow)
+    
+    #get averages and medians from values
+    
+    # get distance using values 
+    
+        
+    return  sorted_avg, sorted_media
+
+
+
+
+# Example usage
+if __name__ == "__main__":
+    BASE_URL = "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1"
+    station_lists = ['336:NV:SNTL', '1262:NV:SNTL', '548:NV:SNTL', '573:NV:SNTL', '654:ID:SNTL', '774:ID:SNTL', '811:NV:SNTL', '1136:NV:SNTL']
+    month = 3
+    day = 1
+    years = ['1999', '2023', '2017', '1997', '2006', '2004', '2002']
+    
+    soil = get_soil(station_lists, BASE_URL, month, day, years)
 
 
 
