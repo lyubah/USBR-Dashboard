@@ -10,160 +10,127 @@ import requests
 import pandas as pd
 
 
-def pivot_data(df, value_column):
-    """
-    Pivots the data to have 'month_day' as index and years as columns.
-    """
-    pivot_df = df.pivot(index='month_day', columns='year', values=value_column)
-    pivot_df.reset_index(inplace=True)
-    return pivot_df
-
-def preprocess_agg_data(df):
-    """
-    Preprocesses the aggregated data by converting 'date' to datetime, extracting 'month_day' and 'year'.
-    """
-    df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d', errors='coerce')
-    df = df.dropna(subset=['date'])  # Drop rows where date conversion failed
-    df['month_day'] = df['date'].dt.strftime('%m-%d')
-    df['year'] = df['date'].dt.year
-    return df.drop(columns=['date'])
 
 
-def aggregate_by_average(df):
-    """
-    Aggregates the data by date using average.
-    """
-    if not pd.api.types.is_datetime64_any_dtype(df['date']):
-        df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+
+
+def get_water_year_start(date):
+    # Check if the month is before October
+    if date.month >= 10:
+        # If the date is in October or later, the start of the water year is in the same year
+        water_year_start = datetime(date.year, 10, 1)
+    else:
+        # If the date is before October, the start of the water year is in the previous year
+        water_year_start = datetime(date.year - 1, 10, 1)
     
-    average_aggregation = df.groupby('date').agg({
-        'value': 'mean'
-    }).reset_index()
-
-    return average_aggregation
-
-def aggregate_by_median(df):
-    """
-    Aggregates the data by date using median.
-    """
-    if not pd.api.types.is_datetime64_any_dtype(df['date']):
-        df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
-    
-    median_aggregation = df.groupby('date').agg({
-        'value': 'median'
-    }).reset_index()
-
-    return median_aggregation
-
-def pivot_data(df, value_column):
-    """
-    Pivots the data to have 'month_day' as index and years as columns.
-    """
-    pivot_df = df.pivot(index='month_day', columns='year', values=value_column)
-    pivot_df.reset_index(inplace=True)
-    return pivot_df
-
-def process_and_save_aggregated_data(df):
-    """
-    Aggregates the data using average and median, preprocesses, pivots, and sorts by water year.
-    """
-    # Aggregate data by average and median
-    agg_avg_df = aggregate_by_average(df)
-    agg_med_df = aggregate_by_median(df)
-    
-    # Preprocess aggregated data
-    agg_avg_df = preprocess_agg_data(agg_avg_df)
-    agg_med_df = preprocess_agg_data(agg_med_df)
-    
-    # Pivot the data
-    pivoted_values_avg = pivot_data(agg_avg_df, 'value')
-    pivoted_values_med = pivot_data(agg_med_df, 'value')
-    
-    # Fill NA values with 0
-    pivoted_values_avg = pivoted_values_avg.fillna(0)
-    pivoted_values_med = pivoted_values_med.fillna(0)
-  
-  # Convert columns to strings
-    pivoted_values_avg.columns = pivoted_values_avg.columns.astype(str)
-    pivoted_values_med.columns = pivoted_values_med.columns.astype(str)
-     
-    
-    # Sort data by water year
-    sorted_avg = sort_water_year(pivoted_values_avg)
-    sorted_median = sort_water_year(pivoted_values_med)
-    
-    return sorted_avg, sorted_median
+    return water_year_start
 
 
+# def sort_water_year(df):
+#     # Ensure 'month_day' is the index
+#     if 'month_day' not in df.columns:
+#         df.reset_index(inplace=True)
+#         df.rename(columns={'index': 'month_day'}, inplace=True)
+        
+#     # Convert 'month_day' to datetime format for sorting
+#     df['month_day'] = pd.to_datetime(df['month_day'], format='%m-%d', errors='coerce')
 
+#     # Create a new DataFrame to store reordered data
+#     reordered_df = pd.DataFrame()
+
+#     # Get the list of years available in the columns
+#     years = [col for col in df.columns if col.isdigit()]
+
+#     # Process each year's data
+#     for year in years:
+#         # Convert year to integer
+#         year_int = int(year)
+#         previous_year = str(year_int - 1)
+
+#         # If previous year's data doesn't exist, create an empty column
+#         if previous_year not in df.columns:
+#             df[previous_year] = None
+
+#         # Select data from October to December of the previous year
+#         oct_to_dec = df.loc[df['month_day'].dt.month >= 10, previous_year].reset_index(drop=True)
+
+#         # Select data from January to September of the current year
+#         jan_to_sep = df.loc[df['month_day'].dt.month < 10, year].reset_index(drop=True)
+
+#         # Combine the data to form the water year
+#         water_year_data = pd.concat([oct_to_dec, jan_to_sep], ignore_index=True)
+
+#         # Add the water year data to the new DataFrame
+#         reordered_df[year] = water_year_data
+
+#     # Reset the index of the new DataFrame to 'month_day'
+#     reordered_df.index = pd.date_range(start='10/1/2000', periods=len(reordered_df), freq='D')
+#     reordered_df.index = reordered_df.index.strftime('%m-%d')
+
+#     return reordered_df
 
 def sort_water_year(df):
     # Ensure 'month_day' is the index
-    if 'month_day' not in df.columns:
-        df.reset_index(inplace=True)
-        df.rename(columns={'index': 'month_day'}, inplace=True)
-        
-    # Convert 'month_day' to datetime format
-    df['month_day'] = pd.to_datetime(df['month_day'], format='%m-%d', errors='coerce')
+    if df.index.name != 'month_day':
+        if 'month_day' in df.columns:
+            df.set_index('month_day', inplace=True)
+        else:
+            raise ValueError("'month_day' must be either an index or a column in the DataFrame.")
+    
+    # Convert 'month_day' to datetime format for sorting
+    df.index = pd.to_datetime(df.index, format='%m-%d', errors='coerce')
 
-    # Create a new DataFrame to store reordered data
-    reordered_df = pd.DataFrame()
+    # Sort the index using a custom sort key that considers both month and day
+    def water_year_sort_key(date):
+        # October to December should come first, followed by January to September
+        if date.month >= 10:
+            # (0, day) for October, (1, day) for November, (2, day) for December
+            return date.month - 10, date.day
+        else:
+            # (3, day) for January, (4, day) for February, ..., (11, day) for September
+            return date.month + 2, date.day
 
-    # Process each year's data
-    for year in :
-        # Create the column names as strings
-        current_year = str(year)
-        previous_year = str(year - 1)
+    # Sort the DataFrame by the custom water year order
+    df = df.sort_index(key=lambda x: x.map(water_year_sort_key))
+    
+    # Restore the month_day as a string index
+    df.index = df.index.strftime('%m-%d')
+    df = df[~df.index.isna()]
 
-        # If previous year column does not exist, create an empty column
-        if previous_year not in df.columns:
-            df[previous_year] = None
 
-        # Select data from October to December of the previous year
-        oct_to_dec = df.loc[df['month_day'].dt.month >= 10, previous_year].reset_index(drop=True)
 
-        # Select data from January to September of the current year
-        jan_to_sep = df.loc[df['month_day'].dt.month < 10, current_year].reset_index(drop=True)
+    return df
 
-        # Combine the data to form the water year
-        water_year_data = pd.concat([oct_to_dec, jan_to_sep], ignore_index=True)
 
-        # Add the water year data to the new DataFrame
-        reordered_df[current_year] = water_year_data
 
-    # Reset the index of the new DataFrame to 'month_day'
-    reordered_df.index = pd.date_range(start='10/1/2000', periods=len(reordered_df), freq='D')
-    reordered_df.index = reordered_df.index.strftime('%m-%d')
-
-    return reordered_df
-
-def calculate_122_day_period(year, month, day):
-    year = int(year)
-    month = int(month)
-    day= int(day)
-    start_date = datetime(year, month, day)
-    end_date = start_date + timedelta(days=121)
-    return start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')
-
-def get_parameters(station_triplets, start_date, end_date):
+def get_parameters(station_triplets, year, current_date):
     """
     Collects common parameters for both stations and data endpoints.
     """
     elements = 'SMS:*'
     duration = "DAILY"
+    
+    # Get the start date of the water year based on the current date
+    start_date = get_water_year_start(current_date).strftime('%Y-%m-%d')
+    
+    # Ensure current_date is in the correct string format
+    current_date_str = current_date.strftime('%Y-%m-%d')
+    
     central_tendency_type = "ALL"
     return_flags = False
-    begin_date = 
+    
     params = {
         "stationTriplets": station_triplets,
         "elements": elements,
         "duration": duration,
         "beginDate": start_date,
-        "endDate": end_date,
+        "endDate": current_date_str,
         "centralTendencyType": central_tendency_type,
-        "returnFlags": False
+        "returnFlags": return_flags
     }
     return params
+
+
 
 def get_station_data(params, BASE_URL):
     """
@@ -181,6 +148,9 @@ def get_station_data(params, BASE_URL):
     else:
         print(f"Error: {response.status_code} - {response.text}")
         return False
+
+
+
 
 def relevant_data(data):
     """
@@ -207,66 +177,145 @@ def relevant_data(data):
                 })
     return pd.DataFrame(relevant_data)
 
-# def relevant_data(data):
+# def aggregate_by_average(df):
 #     """
-#     Extracts relevant data from the JSON response.
+#     Aggregates the data by date using average.
 #     """
-#     relevant_data = []
-#     for station in data:
-#         station_triplet = station['stationTriplet']
-#         for record in station['data']:
-#             element_code = record['stationElement']['elementCode']  # Extract the element code
-#             for value in record['values']:
-#                 year = value['year']
-#                 month = value['month']
-#                 date = datetime(year, month, 1)  # Create date from year and month
-#                 average = -1 if value.get('average') is None else value['average']
-#                 median = -1 if value.get('median') is None else value['median']
-#                 relevant_data.append({
-#                     'stationTriplet': station_triplet,
-#                     'element': element_code,  # Add the element code to the record
-#                     'date': date,
-#                     'year': year,
-#                     'month': month,
-#                     'value': value['value'],
-#                     'average': average,
-#                     'median': median
-#                 })
-#     return pd.DataFrame(relevant_data)
+#     if not pd.api.types.is_datetime64_any_dtype(df['date']):
+#         df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+    
+#     average_aggregation = df.groupby('year').agg({
+#         'value': 'mean',
+#         # 'average': 'mean',
+#         # 'median': 'mean'
+#     }).reset_index()
+
+#     return average_aggregation
+def aggregate_by_average(df):
+    """
+    Aggregates the data by date using average.
+    """
+    # Ensure 'date' is in datetime format
+    if not pd.api.types.is_datetime64_any_dtype(df['date']):
+        df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+    
+    # Extract 'month_day' and 'year' for aggregation
+    df['month_day'] = df['date'].dt.strftime('%m-%d')
+    # df['year'] = df['date'].dt.year
+    
+    # Group by 'month_day' and 'year' and calculate the average of 'value'
+    average_aggregation = df.groupby(['month_day', 'year']).agg({
+        'value': 'mean'
+    }).reset_index()
+
+    return average_aggregation
+
+# def aggregate_by_median(df):
+#     """
+#     Aggregates the data by date using median.
+#     """
+#     if not pd.api.types.is_datetime64_any_dtype(df['date']):
+#         df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+    
+#     median_aggregation = df.groupby('date').agg({
+#         'value': 'median',
+#         # 'average': 'median',
+#         # 'median': 'median'
+#     }).reset_index()
+
+#     return median_aggregation
+
+def preprocess_agg_data(df):
+    """
+    Pivots the DataFrame so that each year is a column, with 'month_day' as the index.
+    
+    Parameters:
+    df (pd.DataFrame): The input DataFrame containing 'month_day', 'year', and 'value'.
+    
+    Returns:
+    pd.DataFrame: A pivoted DataFrame with years as columns and 'month_day' as the index.
+    """
+    # Pivot the DataFrame
+    pivot_df = df.pivot(index='month_day', columns='year', values='value')
+    
+    # Optional: Fill any missing values (e.g., NaN) with 0 or other strategy
+    pivot_df = pivot_df.fillna(0)
+    
+    # Reset the index if needed, but typically we'll leave month_day as the index
+    # pivot_df.reset_index(inplace=True)
+    
+    return pivot_df
+    
+def pivot_data(df, value_column):
+    """
+    Pivots the data to have 'month_day' as index and years as columns.
+    """
+    pivot_df = df.pivot(index='month_day', columns='year', values=value_column)
+    pivot_df.reset_index(inplace=True)
+    return pivot_df
+
+def process_and_save_aggregated_data(df):
+    """
+    Aggregates the data using average and median, preprocesses, pivots, and sorts by water year.
+    """
+    # Aggregate data by average and median
+    agg_avg_df = aggregate_by_average(df)
+    # agg_med_df = aggregate_by_median(df)
+    
+    # Preprocess aggregated data
+    agg_avg_df = preprocess_agg_data(agg_avg_df)
+    # agg_med_df = preprocess_agg_data(agg_med_df)
+    
+    # Pivot the data
+    # pivoted_values_avg = pivot_data(agg_avg_df, 'value')
+    # pivoted_values_med = pivot_data(agg_med_df, 'value')
+    
+    # Sort data by water year
+    sorted_avg = sort_water_year(agg_avg_df)
+    # sorted_median = sort_water_year(pivoted_values_med)
+    
+    return sorted_avg 
 
 def get_soil(station_lists, BASE_URL, month, day, years):
+    soil_moisture = pd.DataFrame()
     
-    soil_moisture = pd.DataFrame()    
-
-    # stations = [station for station in station_lists if "SNTL" in station]
-    
-    for year in years:
-        start_date, end_date = calculate_122_day_period(year, month, day)
-        
-        print(f"Start Date: {start_date}, End Date: {end_date}")
-        
+    for year in years:        
         # Fetch data for each station
         data_frames = []
+        curr_date = datetime(int(year), month, day)
+
         for station in station_lists:
-            print(f"Fetching data for station: {station}")
-            params = get_parameters(station, start_date, end_date)
+            print(f"Fetching data for station: {station} for year: {year}")
+            params = get_parameters(station, year, curr_date)
             data = get_station_data(params, BASE_URL)
             if data:
                 df = relevant_data(data)
-                print(f"Processed data for station: {station}")
-                print(df.head())
                 if not df.empty:
+                    df['year'] = year  # Ensure the year is included in the DataFrame
                     data_frames.append(df)
             else:
                 print(f"No data returned for station: {station}")
-        
+
         if data_frames:
             combined_df = pd.concat(data_frames, ignore_index=True)
-            soil_moisture = pd.concat([all_observed_flow, combined_df], ignore_index=True)
+            soil_moisture = pd.concat([soil_moisture, combined_df], ignore_index=True)
+        
+    df = process_and_save_aggregated_data(soil_moisture)
+    
+    
+    
+    # aggregate sntl stations by day
+    
+    
+    
+    return soil_moisture
+
+        
+        # piv_tab = process_and_save_aggregated_data(soil_moisture)
     
     # START HERE
     # convert to water year:
-        soil_moisture
+        
     # sorted_avg, sorted_median = process_and_save_aggregated_data(all_observed_flow)
     
     #get averages and medians from values
@@ -274,7 +323,6 @@ def get_soil(station_lists, BASE_URL, month, day, years):
     # get distance using values 
     
         
-    return  sorted_avg, sorted_media
 
 
 
@@ -285,7 +333,8 @@ if __name__ == "__main__":
     station_lists = ['336:NV:SNTL', '1262:NV:SNTL', '548:NV:SNTL', '573:NV:SNTL', '654:ID:SNTL', '774:ID:SNTL', '811:NV:SNTL', '1136:NV:SNTL']
     month = 3
     day = 1
-    years = ['1999', '2023', '2017', '1997', '2006', '2004', '2002']
+    year = 2024 
+    years = ['1999', '2023', '2017', '1997', '2006', '2004', '2002', '2024']
     
     soil = get_soil(station_lists, BASE_URL, month, day, years)
 
@@ -293,13 +342,3 @@ if __name__ == "__main__":
 
 
 
-
-
-
-# # Example usage:
-# station_triplet = '1136:NV:SNTL	'
-# begin_date = '1980-10-01'
-# end_date = '2023-12-31'
-# soil_moisture_data = get_soil_moisture_data(station_triplet, begin_date, end_date)
-# soil_moisture_df = process_soil_moisture_data(soil_moisture_data)
-# print(soil_moisture_df.head())
