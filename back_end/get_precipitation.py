@@ -58,8 +58,8 @@ def calculate_122_day_period(year, month, day):
     return start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')
 
 def calculate_percent_normal(df):
-    print("DataFrame to calculate percent normal:")
-    print(df.head())
+    # print("DataFrame to calculate percent normal:")
+    # print(df.head())
     
     total_precipitation = df['value'].sum()
     total_average_precipitation = df['average'].sum()
@@ -76,17 +76,17 @@ def get_percent_normal_prec(years, month, day, stations, BASE_URL):
     for year in years:
         start_date, end_date = calculate_122_day_period(year, month, day)
         
-        print(f"Start Date: {start_date}, End Date: {end_date}")
+        # print(f"Start Date: {start_date}, End Date: {end_date}")
         
         # Fetch data for each station
         data_frames = []
         for station in stations:
-            print(f"Fetching data for station: {station}")
+            # print(f"Fetching data for station: {station}")
             params = get_parameters(station, start_date, end_date)
             data = get_station_data(params, BASE_URL)
             if data:
                 df = process_data(data)
-                print(f"Processed data for station: {station}")
+                # print(f"Processed data for station: {station}")
                 print(df.head())
                 if not df.empty:
                     data_frames.append(df)
@@ -113,7 +113,7 @@ def get_percent_normal_prec(years, month, day, stations, BASE_URL):
 #     sntl_owy = ['336:NV:SNTL', '1262:NV:SNTL', '548:NV:SNTL', '573:NV:SNTL', '654:ID:SNTL', '774:ID:SNTL', '811:NV:SNTL', '1136:NV:SNTL']
 #     BASE_URL = "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1"
     
-#     percent_normal_df = get_percent_normal_prec(years, 3, 1, sntl_owy, BASE_URL)
+#     percent_normal_df = get_percent_normal_prec(years, 3, 15, sntl_owy, BASE_URL)
 #     if not percent_normal_df.empty:
 #         print("Percent normal data for all years:\n", percent_normal_df)
 #         percent_normal_df.to_csv('percent_normal_data.csv', index=False)

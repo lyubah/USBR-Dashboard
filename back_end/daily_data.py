@@ -231,6 +231,7 @@ def get_daily_water_year(BASE_URL, sntl_lst, elements, end_date):
     """
     Runs the entire data processing pipeline for the specified stations and elements.
     """
+    
     # Retrieve and process data
     df, failed_sntl = process_SNTL(BASE_URL, sntl_lst, elements, end_date)
     

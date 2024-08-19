@@ -31,21 +31,7 @@ def select_data_up_to_date(data, month, day):
 def calculate_wasserstein_distance(current_year_data, historical_year_data):
     return wasserstein_distance(current_year_data, historical_year_data)
 
-def find_similar_years(current_year, data, month, day, n):
-    current_year =  str(current_year)
-    period_data = select_data_up_to_date(data, month, day)
-    current_year_data = period_data[current_year].dropna().values
-    distances = []
-    
-    for col_year in period_data.columns:
-        if col_year not in ['month_day', current_year]:
-            historical_year_data = period_data[col_year].dropna().values
-            distance = calculate_wasserstein_distance(current_year_data, historical_year_data)
-            distances.append((col_year, distance))
-    
-    distances.sort(key=lambda x: x[1])
-    
-    return distances[:n]
+
 
 def find_similar_years_across_datasets(current_year, datasets, month, day, threshold, n):
     similar_years_all = []
@@ -63,7 +49,31 @@ def find_similar_years_across_datasets(current_year, datasets, month, day, thres
     unique_similar_years = {year: score for year, score in similar_years_all if score <= threshold}
     sorted_years = sorted(unique_similar_years.items(), key=lambda x: x[1])
 
-    return [(year, month, day, score) for year, score in sorted_years]
+    return [(year, month, day, score.round(2)) for year, score in sorted_years]
+
+
+
+
+
+    
+def find_similar_years(current_year, data, month, day, n):
+    current_year =  str(current_year)
+    period_data = select_data_up_to_date(data, month, day)
+    current_year_data = period_data[current_year].dropna().values
+    distances = []
+    
+    for col_year in period_data.columns:
+        if col_year not in ['month_day', current_year]:
+            historical_year_data = period_data[col_year].dropna().values
+            distance = calculate_wasserstein_distance(current_year_data, historical_year_data)
+            distances.append((col_year, distance))
+    
+    distances.sort(key=lambda x: x[1])
+    
+    return distances[:n]
+
+
+
 
 # Example usage
 

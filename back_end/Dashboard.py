@@ -20,6 +20,8 @@ import dash
 from station_meta_data import get_stations_metadata
 from report_dataset_gen import *
 from observed_flow import *
+from snow_data import * 
+import time
 
 # Define the Flask server
 server = Flask(__name__)
@@ -153,6 +155,7 @@ app.layout = html.Div([  # Main container
                         'alignItems': 'center',  # Center align vertically
                         'padding': '10px 0'  # Padding inside the flexbox container
                     }),
+                   
                     html.Button(
                         'Submit',
                         id='submit-button',
@@ -174,6 +177,13 @@ app.layout = html.Div([  # Main container
                     'backgroundColor': '#ffffff',  # White background for the container
                     'boxShadow': '0px 0px 15px rgba(0, 0, 0, 0.1)'  # Slight box shadow for the container
                 }),
+                 # Loading component for status indicator on Home tab
+                 dcc.Loading(
+                     id="loading-indicator",
+                     type="default",
+                     children=html.Div(id="loading-output", style={'textAlign': 'center', 'marginTop': '50px'})
+                 ),
+                 
                 html.Hr(style={'width': '100%', 'borderColor': '#ccc', 'margin': '40px 0'}),  # Styled divider
                 html.Div(
                     [
@@ -219,35 +229,6 @@ app.layout = html.Div([  # Main container
     'minHeight': '100vh'  # Minimum height for the container
 })
 
-# @app.callback(
-#     Output('stations-dropdown', 'options'),
-#     Input('basin-dropdown', 'value')
-# )
-# def update_stations_dropdown(selected_basin):
-#     if selected_basin in basin_stations:
-#         stations = basin_stations[selected_basin]
-#         return [{'label': station, 'value': station} for station in stations]
-#     return []    
-
-# @app.callback(
-#     Output('stations-dropdown', 'options'),  # Updates the options of the stations dropdown
-#     Output('stations-dropdown', 'value'),    # Updates the selected values of the stations dropdown
-#     Input('basin-dropdown', 'value')         # Triggered when the basin dropdown value changes
-# )
-# def update_stations_dropdown(selected_basin):
-#     # Options for all stations are prepared
-#     options = [{'label': triplet, 'value': triplet} for triplet in stations_triplets]
-    
-#     # If the selected basin is "Owyhee River Basin, OR-NV", populate the dropdown with specific stations
-#     if selected_basin == "Owyhee River Basin, OR-NV":
-#         value = owyhee_stations
-#     else:
-#         # If another basin is selected, no stations are pre-selected
-#         value = []
-    
-#     # Return the updated options and selected values
-#     return options, value
-
 # Callback to toggle graph visibility
 @app.callback(
     Output('graph-container', 'children'),
@@ -261,88 +242,99 @@ def close_graph(n_clicks):
         dcc.Graph(figure=fig)
     ]  # Default to showing the graph
 
-# # Callback to update the table
+
 # @app.callback(
-#     Output('output-table', 'children'),
+    
+#     Output('data-summary-content', 'children'),
 #     Input('submit-button', 'n_clicks'),
 #     State('basin-dropdown', 'value'),
-#     State('date-picker', 'date')
+#     State('date-picker', 'date'),
+#     State('stations-dropdown', 'value')
 # )
-# def update_table(n_clicks, selected_basin, selected_date):
+# def update_table_and_summary(n_clicks, selected_basin, selected_date, selected_stations):
 #     if n_clicks > 0:
-#         # Mock data for demonstration purposes
-#         # data = {
-#         #     'Year': ['2020', '2019', '2018'],
-#         #     'Data Point 1': [100, 200, 300],
-#         #     'Data Point 2': [400, 500, 600],
-#         #     'Data Point 3': [700, 800, 900]  # Add more columns as needed
-#         # }
-#         # df = pd.DataFrame(data)
-        
-#         report_data = generate_report_data(selected_basin, selected_date)
+#         # Generate the report data
+#         report_data = generate_report_data(selected_basin, selected_stations, selected_date)
 
-
-#         return dash_table.DataTable(
+#         # Generate the DataTable for the Home tab (output-table)
+#         table_component = dash_table.DataTable(
 #             id='data-table',
-#             data= report_data.to_dict('records'),
-#             columns=[{'name': i, 'id': i} for i in df.columns],
-#             style_table={
-#                 'margin': 'auto',
-#                 'width': '100%',
-#                 'overflowX': 'auto',  # Horizontal scrolling
-#                 'maxHeight': '300px',  # Maximum height for vertical scrolling
-#                 'overflowY': 'auto'  # Vertical scrolling
-#             },
-#             style_cell={'textAlign': 'center'},  # Center align text in table cells
-#             style_header={
-#                 'backgroundColor': '#3498db',
-#                 'color': 'white',
-#                 'fontWeight': 'bold'
-#             },
-#             style_data={
-#                 'backgroundColor': '#f9f9f9',
-#                 'color': '#2c3e50'
-#             }
+#             data=report_data.to_dict('records'),
+#             columns=[{'name': i, 'id': i} for i in report_data.columns],
+#             # (styling options...)
 #         )
-#     return None
 
-# Callback to update the table
+#         # Generate the content for the Data Summary tab (data-summary-content)
+#         summary_component = html.Div([
+#             html.H3('Data Summary'),
+#             # dcc.Graph(
+#             #     figure=px.line(report_data, x='year', y='122-Day Mean Stream Volume (SRVOO)',
+#             #                    title='Stream Volume Over Time')
+#             # ),
+#             dash_table.DataTable(
+#                 data=report_data.to_dict('records'),
+#                 columns=[{'name': i, 'id': i} for i in report_data.columns],
+#                 # (styling options...)
+#             )
+#         ])
+
+#         # Return both components to be displayed in their respective tabs
+#         return summary_component
+
+#     return None, None
 @app.callback(
-    Output('output-table', 'children'),
+    [Output('data-summary-content', 'children'),
+     Output('loading-output', 'children')],
     Input('submit-button', 'n_clicks'),
     State('basin-dropdown', 'value'),
     State('date-picker', 'date'),
-    State('stations-dropdown', 'value')  # Add this to capture selected stations
+    State('stations-dropdown', 'value')
 )
-def update_table(n_clicks, selected_basin, selected_date, selected_stations):
+def update_table_and_summary(n_clicks, selected_basin, selected_date, selected_stations):
     if n_clicks > 0:
-        # Call the generate_report_data function with the selected basin, stations, and date
+        # Show "Loading..." immediately on button click
+        loading_message = "Loading..."
+
+        # Simulate a delay for report generation (replace this with actual report generation logic)
+        time.sleep(3)  # Simulating report generation time
+
+        # Generate the report data
         report_data = generate_report_data(selected_basin, selected_stations, selected_date)
 
-        # Generate the DataTable with the report data
-        return dash_table.DataTable(
-            id='data-table',
-            data=report_data.to_dict('records'),
-            columns=[{'name': i, 'id': i} for i in report_data.columns],
-            style_table={
-                'margin': 'auto',
-                'width': '100%',
-                'overflowX': 'auto',  # Horizontal scrolling
-                'maxHeight': '300px',  # Maximum height for vertical scrolling
-                'overflowY': 'auto'  # Vertical scrolling
-            },
-            style_cell={'textAlign': 'center'},  # Center align text in table cells
-            style_header={
-                'backgroundColor': '#3498db',
-                'color': 'white',
-                'fontWeight': 'bold'
-            },
-            style_data={
-                'backgroundColor': '#f9f9f9',
-                'color': '#2c3e50'
-            }
-        )
-    return None
+        # Generate the content for the Data Summary tab
+        summary_component = html.Div([
+        #     html.H3('Data Summary'),
+        #     dcc.Graph(
+        #         figure=px.line(report_data, x='year', y='122-Day Mean Stream Volume (SRVOO)',
+        #                        title='Stream Volume Over Time')
+        #     ),
+            dash_table.DataTable(
+                data=report_data.to_dict('records'),
+                columns=[{'name': i, 'id': i} for i in report_data.columns],
+                style_table={
+                    'margin': 'auto',
+                    'width': '100%',
+                    'overflowX': 'auto',
+                    'maxHeight': '300px',
+                    'overflowY': 'auto'
+                },
+                style_cell={'textAlign': 'center'},
+                style_header={
+                    'backgroundColor': '#3498db',
+                    'color': 'white',
+                    'fontWeight': 'bold'
+                },
+                style_data={
+                    'backgroundColor': '#f9f9f9',
+                    'color': '#2c3e50'
+                }
+            )
+        ])
+
+        # Update the loading message to "Done"
+        return summary_component, "Done"
+
+    return None, ""
 
 # Callback to update the visualization widget
 @app.callback(

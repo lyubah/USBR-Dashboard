@@ -32,7 +32,8 @@ from daily_data import *
 # from get_soil_moisture import *
 from get_precipitation import * 
 from observed_flow import *
-
+from get_soil_moisture import *
+from snow_data import * 
 
 
 
@@ -61,29 +62,37 @@ def generate_report_data(basin, station_list, date):
     day = date.day
     
     df = []
+    current_df = pd.DataFrame()  # DataFrame to hold current year data
+    graph_data = pd.DataFrame() 
      
     
     #Note to self... Include current year of comparison in dataset or hover capability
     
     #collect daily values for snow water equivalent 
     wteq_avg , wteq_med = get_daily_water_year(BASE_URL, station_list, 'WTEQ', date)
+    
+    
 
     #Find similar years for snow water equivalent
     # Load the sorted data and set the correct index
     # sorted_avg_data = pd.read_csv('sorted_water_year_avg.csv', index_col=0)
     # sorted_med_data = pd.read_csv('sorted_water_year_med.csv', index_col=0)
     datasets = [wteq_avg, wteq_med]
-    similar_years_scores = find_similar_years_across_datasets(year, datasets, month, day, threshold=0.85, n=8)
-   
+    
+    #get average WTEQ SCORE for current year and append it  
+    
+    
+    similar_years_scores = find_similar_years_across_datasets(year, datasets, month, day, threshold=0.90, n=8)
+
+
+
+    
     # Define the score column name
     score_column_name = 'WTEQ_similarity_score_Wasserstein'
     
     # Create the DataFrame
     df = pd.DataFrame(similar_years_scores, columns=['year', 'month', 'day', score_column_name])
-    
-    years = df['year'].to_list()
-    years.append(str(year))
-    
+    # take similar_years and get WTEQ DATA for each year append it to graph data. 
     # Set the 'year' column as the index
     df.set_index('year', inplace=True)
     df.index = df.index.astype(int)
@@ -94,6 +103,28 @@ def generate_report_data(basin, station_list, date):
     # Apply color based on similarity score
     df['color'] = df[score_column_name].apply(color_based_on_similarity)
     
+
+    # ADD WTEQ DATA TO GRAPH DF 
+    years = df['year'].to_list()
+    # years.append(str(year))
+    graph_years = years + [year]
+    # Iterate over each year in graph_years and collect the WTEQ data
+    for similar_year in graph_years:
+        # Extract the WTEQ data for the current year/column
+        year_data = wteq_avg[wteq_avg.index.year == similar_year]
+        year_data_med = wteq_med[wteq_med.index.year == similar_year]
+        
+        # Add the data to the graph_data DataFrame as columns
+        graph_data[str(similar_year) + '_WTEQ_avg'] = year_data.values
+        graph_data[str(similar_year) + '_WTEQ_med'] = year_data_med.values
+    
+    # Add the date index for the graph_data
+    graph_data['date'] = wteq_avg.index.strftime('%m-%d')
+    
+    
+
+    
+   
     # get precipitation 
     prec = get_percent_normal_prec(years, month, day, station_list, BASE_URL)
     
@@ -105,11 +136,21 @@ def generate_report_data(basin, station_list, date):
     # Set 'year' as index for both DataFrames and convert to integer
     merged_df = merged_df.merge(obsv_flow, left_index=True, right_index=True, how='left')
     # obsv_flow.rename(columns={'value': '122-Day Mean Stream Volume (SRVOO)'}, inplace=True)
-
     # Rename the column if needed
-   
+    # years
+    # year
+    soil_moisture = get_soil(station_list, BASE_URL, month, day, year, years)
+    # soil_moisture
+    merged_df = merged_df.merge(soil_moisture, left_index=True, right_index=True, how='left')    
+  
+    
+    snow_depth =  get_snow_coverage_data(years, month, day, year, station_list, BASE_URL)
+    merged_df = merged_df.merge(snow_depth, left_index=True, right_index=True, how='left')  
+    
+    
+    # merged_df
     merged_df.reset_index(inplace=True)
-
+    
     
     return merged_df
     
@@ -117,18 +158,16 @@ def generate_report_data(basin, station_list, date):
     
     
     
-    
-    
-    
-        
-# # Perocesses it 
 
-# if __name__ == "__main__":
-#     BASE_URL = "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1"
-#     sntl_owy =  ['336:NV:SNTL','13183000:OR:USGS','13174500:NV:USGS','13181000:OR:USGS', '1262:NV:SNTL', '548:NV:SNTL', 
-#                                   '573:NV:SNTL', '654:ID:SNTL', '774:ID:SNTL', '811:NV:SNTL', '1136:NV:SNTL']
-#     end_date = datetime.now().strftime("%Y-%m-%d")
+#     # Perocesses it 
+
+if __name__ == "__main__":
+    BASE_URL = "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1"
+    sntl_owy =  ['336:NV:SNTL','13183000:OR:USGS','13174500:NV:USGS','13181000:OR:USGS', '1262:NV:SNTL', '548:NV:SNTL', 
+                                  '573:NV:SNTL', '654:ID:SNTL', '774:ID:SNTL', '811:NV:SNTL', '1136:NV:SNTL']
+    # end_date = datetime.now().strftime("%Y-%m-%d")
+    end_date = '2024-03-16'
     
-#     df = generate_report_data('basin', sntl_owy, end_date)
-#     df 
+    df = generate_report_data('basin', sntl_owy, end_date)
+     
     

@@ -8,9 +8,7 @@ from daily_data import *
 from datetime import datetime, timedelta
 import requests
 import pandas as pd
-
-
-
+import similar_years
 
 
 
@@ -225,6 +223,91 @@ def aggregate_by_average(df):
 
 #     return median_aggregation
 
+
+# def calculate_moisture_difference(current_year, data):
+#     """
+#     Calculate the difference in soil moisture between the current year and historical years.
+    
+#     Parameters:
+#     - current_year (str): The year to compare against.
+#     - data (pd.DataFrame): The DataFrame containing water year ordered soil moisture percentage.
+    
+#     Returns:
+#     - pd.DataFrame: A DataFrame with the moisture differences and qualitative assessments.
+#     """
+#     current_year = str(current_year)
+#     current_year_data = data[current_year].dropna().values
+#     results = []
+
+#     for col_year in data.columns:
+#         if col_year != current_year:
+#             historical_year_data = data[col_year].dropna().values
+            
+#             # Calculate differences: positive means historical year was more moist
+#             differences = historical_year_data - current_year_data
+            
+#             # Summarize the differences
+#             mean_difference = differences.mean()  # Mean of the differences
+#             if mean_difference > 0:
+#                 qualitative_metric = '+'  # More moist historically
+#             elif mean_difference < 0:
+#                 qualitative_metric = '-'  # Less moist historically
+#             else:
+#                 qualitative_metric = '='  # About the same
+
+#             results.append((col_year, mean_difference, qualitative_metric))
+    
+#     # Create a DataFrame with the results
+#     results_df = pd.DataFrame(results, columns=['year', 'soi_moisture_ (mean_difference)', 'soil moisture similarity']).set_index('year')
+
+#     return results_df
+
+def calculate_moisture_difference(current_year, data, similarity_threshold=.8):
+    """
+    Calculate the difference in soil moisture between the current year and historical years.
+    
+    Parameters:
+    - current_year (str): The year to compare against.
+    - data (pd.DataFrame): The DataFrame containing water year ordered soil moisture percentage.
+    - similarity_threshold (float): The threshold within which differences are considered "about the same".
+    
+    Returns:
+    - pd.DataFrame: A DataFrame with the moisture differences and qualitative assessments.
+    """
+    current_year = int(current_year)
+    
+    
+    current_year_data = data[current_year].dropna().values
+    results = []
+
+    for col_year in data.columns:
+        if col_year != current_year:
+            historical_year_data = data[col_year].dropna().values
+            
+            # Calculate differences: positive means historical year was more moist
+            differences = historical_year_data - current_year_data
+            
+            # Summarize the differences
+            mean_difference = differences.mean().round(2)  # Mean of the differences
+            abs_mean_difference = abs(mean_difference)  # Absolute mean difference
+            
+            # Determine qualitative metric
+            if abs_mean_difference <= similarity_threshold:
+                qualitative_metric = '='  # About the same
+            elif mean_difference > 0:
+                qualitative_metric = '+'  # More moist historically
+            else:
+                qualitative_metric = '-'  # Less moist historically
+
+            results.append((col_year, mean_difference, qualitative_metric))
+    
+    # Create a DataFrame with the results
+    results_df = pd.DataFrame(results, columns=['year', 'Average Soil Moisture Difference (%)', 'Soil Moisture Similarity Indicator']).set_index('year')
+
+    return results_df
+
+
+
 def preprocess_agg_data(df):
     """
     Pivots the DataFrame so that each year is a column, with 'month_day' as the index.
@@ -276,8 +359,10 @@ def process_and_save_aggregated_data(df):
     
     return sorted_avg 
 
-def get_soil(station_lists, BASE_URL, month, day, years):
+def get_soil(station_lists, BASE_URL, month, day, year, years):
     soil_moisture = pd.DataFrame()
+    current_year = year 
+    years.append(current_year)
     
     for year in years:        
         # Fetch data for each station
@@ -302,13 +387,29 @@ def get_soil(station_lists, BASE_URL, month, day, years):
         
     df = process_and_save_aggregated_data(soil_moisture)
     
+    #
+ 
+    # Compare 2024 to other years
+    similar_years_df = calculate_moisture_difference(current_year, df)
     
+    # Identify missing years
+    missing_years = set(years) - set(similar_years_df.index)
+    # Create a DataFrame with missing years
+    missing_data = pd.DataFrame({
+        'year': list(missing_years),
+        'Average Soil Moisture Difference (%)': float('nan'),
+        'Soil Moisture Similarity Indicator': float('nan')
+    }).set_index('year')
     
-    # aggregate sntl stations by day
+    # Append the missing data to similar_years_df
+    similar_years_df = pd.concat([similar_years_df, missing_data])
+    similar_years_df.drop(index=current_year, inplace=True)
+        # Convert the index to numeric (integer in this case)
+    similar_years_df.index = similar_years_df.index.astype(int)
+
     
-    
-    
-    return soil_moisture
+    # similar_years_df = similar_years_df.reindex(years)
+    return similar_years_df
 
         
         # piv_tab = process_and_save_aggregated_data(soil_moisture)
@@ -327,17 +428,18 @@ def get_soil(station_lists, BASE_URL, month, day, years):
 
 
 
-# Example usage
-if __name__ == "__main__":
-    BASE_URL = "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1"
-    station_lists = ['336:NV:SNTL', '1262:NV:SNTL', '548:NV:SNTL', '573:NV:SNTL', '654:ID:SNTL', '774:ID:SNTL', '811:NV:SNTL', '1136:NV:SNTL']
-    month = 3
-    day = 1
-    year = 2024 
-    years = ['1999', '2023', '2017', '1997', '2006', '2004', '2002', '2024']
+# # Example usage
+# if __name__ == "__main__":
+#     BASE_URL = "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1"
+#     station_lists = ['336:NV:SNTL', '1262:NV:SNTL', '548:NV:SNTL', '573:NV:SNTL', '654:ID:SNTL', '774:ID:SNTL', '811:NV:SNTL', '1136:NV:SNTL']
+#     month = 3
+#     day = 1
+#     year = 2024 
+#     years = ['1999', '2023', '2017', '1997', '2006', '2004', '2002']
     
-    soil = get_soil(station_lists, BASE_URL, month, day, years)
-
+    
+#     soil = get_soil(station_lists, BASE_URL, month, day, year, years)
+#     soil
 
 
 

@@ -20,7 +20,7 @@ import pandas as pd
 
 
 def get_average(df):
-   return df.groupby('year')['value'].mean()
+   return df.groupby('year')['value'].mean().round(2)
 
     
 
